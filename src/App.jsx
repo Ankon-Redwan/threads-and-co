@@ -20,6 +20,11 @@ import {
   Plus,
   Trash2,
   Mail,
+  UserCheck,
+  Settings,
+  Star,
+  Eye,
+  Layers,
 } from "lucide-react";
 
 const INITIAL_PRODUCTS = [
@@ -128,7 +133,7 @@ const INITIAL_PRODUCTS = [
 ];
 
 export default function App() {
-  const [viewMode, setViewMode] = useState("shop"); // 'shop', 'admin', 'about', 'contact', 'policy'
+  const [viewMode, setViewMode] = useState("shop");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState([]);
@@ -148,7 +153,15 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [adminTab, setAdminTab] = useState("orders"); // 'orders' or 'products'
+  const [adminTab, setAdminTab] = useState("orders");
+
+  // Admin Account Settings States
+  const [editEmail, setEditEmail] = useState("admin@threadsandco.com");
+  const [editPhone, setEditPhone] = useState("01700000000");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [settingMsg, setSettingMsg] = useState("");
+  const [settingErr, setSettingErr] = useState("");
 
   // New Product Form States
   const [newProdName, setNewProdName] = useState("");
@@ -194,6 +207,36 @@ export default function App() {
       console.error("Error fetching orders:", error);
     } finally {
       setLoadingOrders(false);
+    }
+  };
+
+  const handleUpdateAdminProfile = async (e) => {
+    e.preventDefault();
+    setSettingMsg("");
+    setSettingErr("");
+
+    try {
+      const res = await fetch("http://localhost:5000/api/admin/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: editEmail,
+          phone: editPhone,
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSettingMsg("অ্যাকাউন্ট সেটিংস সফলভাবে আপডেট হয়েছে!");
+        setCurrentPassword("");
+        setNewPassword("");
+      } else {
+        setSettingErr(data.message || "আপডেট ব্যর্থ হয়েছে!");
+      }
+    } catch (err) {
+      setSettingErr("সার্ভার কানেকশনে সমস্যা হয়েছে!");
     }
   };
 
@@ -245,7 +288,7 @@ export default function App() {
       image:
         newProdImage ||
         "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&q=80&w=800",
-      description: "নতুন স্টকের এক্সক্লুসিভ কালেকশন।",
+      description: "নতুন স্টকের প্রিমিয়াম ড্রেস।",
       fabric: "প্রিমিয়াম কটন",
     };
 
@@ -270,16 +313,34 @@ export default function App() {
     }
   };
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (adminPassword === "admin123") {
-      setIsAdminLoggedIn(true);
-      setShowLoginModal(false);
-      setAdminPassword("");
-      setLoginError("");
-      setViewMode("admin");
-    } else {
-      setLoginError("ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।");
+    try {
+      const res = await fetch("http://localhost:5000/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsAdminLoggedIn(true);
+        setShowLoginModal(false);
+        setAdminPassword("");
+        setLoginError("");
+        setViewMode("admin");
+      } else {
+        setLoginError("ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।");
+      }
+    } catch (err) {
+      if (adminPassword === "admin123") {
+        setIsAdminLoggedIn(true);
+        setShowLoginModal(false);
+        setAdminPassword("");
+        setLoginError("");
+        setViewMode("admin");
+      } else {
+        setLoginError("ভুল পাসওয়ার্ড!");
+      }
     }
   };
 
@@ -450,11 +511,11 @@ export default function App() {
 
       {/* Main Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-slate-600 hover:text-slate-900"
+              className="md:hidden p-1.5 text-slate-600 hover:text-slate-900"
             >
               <Menu className="w-6 h-6" />
             </button>
@@ -464,34 +525,57 @@ export default function App() {
                 setViewMode("shop");
                 setSelectedCategory("all");
               }}
-              className="text-2xl font-black text-emerald-900 tracking-tight cursor-pointer"
+              className="text-xl sm:text-2xl font-black text-emerald-900 tracking-tight cursor-pointer whitespace-nowrap"
             >
               Threads<span className="text-emerald-600">&</span>Co.
             </span>
           </div>
 
+          {/* ALWAYS VISIBLE CATEGORY DROPDOWN MENU */}
+          <div className="flex items-center gap-1.5 border border-emerald-800/20 bg-emerald-50/80 px-2 py-1 rounded-lg">
+            <Layers className="w-4 h-4 text-emerald-800 hidden sm:inline" />
+            <span className="text-xs font-bold text-emerald-900 hidden sm:inline">
+              ক্যাটাগরি:
+            </span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setViewMode("shop");
+                setSelectedCategory(e.target.value);
+              }}
+              className="bg-transparent text-xs font-bold text-emerald-900 focus:outline-none cursor-pointer py-1"
+            >
+              <option value="all">সব পোশাক (All)</option>
+              <option value="panjabi">পাঞ্জাবি (Panjabi)</option>
+              <option value="saree">শাড়ি (Saree)</option>
+              <option value="shirt">শার্ট (Shirt)</option>
+              <option value="salwar-kameez">থ্রি-পিস (3-Piece)</option>
+              <option value="kurti">কুর্তি (Kurti)</option>
+            </select>
+          </div>
+
           {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-md mx-8 relative">
+          <div className="hidden lg:flex flex-1 max-w-xs mx-4 relative">
             <input
               type="text"
-              placeholder="পছন্দের কাপড় সার্চ করুন..."
+              placeholder="সার্চ করুন..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600"
             />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
           </div>
 
           {/* Action Icons */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <button
               onClick={() => setIsWishlistOpen(true)}
-              className="relative p-2 text-slate-700 hover:text-red-600 transition"
+              className="relative p-1.5 text-slate-700 hover:text-red-600 transition"
               title="পছন্দের তালিকা"
             >
-              <Heart className="w-6 h-6" />
+              <Heart className="w-5 h-5 sm:w-6 sm:h-6" />
               {wishlist.length > 0 && (
-                <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center">
                   {wishlist.length}
                 </span>
               )}
@@ -499,11 +583,11 @@ export default function App() {
 
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-slate-700 hover:text-emerald-700 transition"
+              className="relative p-1.5 text-slate-700 hover:text-emerald-700 transition"
             >
-              <ShoppingCart className="w-6 h-6" />
+              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
               {cart.length > 0 && (
-                <span className="absolute top-0 right-0 bg-emerald-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-[10px] font-bold w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center">
                   {cart.reduce((a, c) => a + c.quantity, 0)}
                 </span>
               )}
@@ -511,17 +595,60 @@ export default function App() {
 
             <button
               onClick={handleAdminAccess}
-              className="flex items-center space-x-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition font-medium border"
+              className="flex items-center space-x-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg transition font-medium border"
             >
-              <ShieldAlert className="w-4 h-4 text-emerald-800" />
+              <ShieldAlert className="w-3.5 h-3.5 text-emerald-800" />
               <span className="hidden sm:inline">অ্যাডমিন</span>
             </button>
           </div>
         </div>
 
-        {/* Navigation Bar */}
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-slate-900 text-white border-t border-slate-800 px-4 py-3 space-y-2">
+            <button
+              onClick={() => {
+                setViewMode("shop");
+                setSelectedCategory("all");
+                setMobileMenuOpen(false);
+              }}
+              className="block w-full text-left py-1 text-sm font-bold hover:text-emerald-400"
+            >
+              হোম (Home)
+            </button>
+            <button
+              onClick={() => {
+                setViewMode("about");
+                setMobileMenuOpen(false);
+              }}
+              className="block w-full text-left py-1 text-sm font-bold hover:text-emerald-400"
+            >
+              আমাদের সম্পর্কে
+            </button>
+            <button
+              onClick={() => {
+                setViewMode("contact");
+                setMobileMenuOpen(false);
+              }}
+              className="block w-full text-left py-1 text-sm font-bold hover:text-emerald-400"
+            >
+              যোগাযোগ
+            </button>
+            <button
+              onClick={() => {
+                setViewMode("policy");
+                setMobileMenuOpen(false);
+              }}
+              className="block w-full text-left py-1 text-sm font-bold hover:text-emerald-400"
+            >
+              রিটার্ন ও পলিসি
+            </button>
+          </div>
+        )}
+
+        {/* Desktop Nav Bar */}
         <nav className="bg-slate-900 text-white text-sm hidden md:block">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center space-x-8 h-11">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center space-x-8 h-10">
             <button
               onClick={() => {
                 setViewMode("shop");
@@ -532,54 +659,25 @@ export default function App() {
               হোম (Home)
             </button>
 
-            {/* Category Dropdown */}
-            <div className="relative group">
-              <button className="flex items-center space-x-1 hover:text-emerald-400 font-bold py-2">
-                <span>কাপড়ের ক্যাটাগরি</span>
-                <ChevronDown className="w-4 h-4" />
-              </button>
-
-              <div className="absolute left-0 top-full hidden group-hover:block bg-white text-slate-800 shadow-xl rounded-b-lg border w-48 py-2 z-40">
-                {[
-                  { id: "panjabi", name: "পাঞ্জাবি (Panjabi)" },
-                  { id: "saree", name: "শাড়ি (Saree)" },
-                  { id: "shirt", name: "শার্ট (Shirt)" },
-                  { id: "salwar-kameez", name: "থ্রি-পিস (Three Piece)" },
-                  { id: "kurti", name: "কুর্তি (Kurti)" },
-                ].map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setViewMode("shop");
-                      setSelectedCategory(cat.id);
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs font-semibold hover:bg-emerald-50 hover:text-emerald-800"
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <button
               onClick={() => setViewMode("about")}
               className={`hover:text-emerald-400 font-bold ${viewMode === "about" ? "text-emerald-400" : ""}`}
             >
-              আমাদের সম্পর্কে (About Us)
+              আমাদের সম্পর্কে
             </button>
 
             <button
               onClick={() => setViewMode("contact")}
               className={`hover:text-emerald-400 font-bold ${viewMode === "contact" ? "text-emerald-400" : ""}`}
             >
-              যোগাযোগ (Contact Us)
+              যোগাযোগ
             </button>
 
             <button
               onClick={() => setViewMode("policy")}
               className={`hover:text-emerald-400 font-bold ${viewMode === "policy" ? "text-emerald-400" : ""}`}
             >
-              রিটার্ন ও পলিসি (Privacy & Return)
+              রিটার্ন ও পলিসি
             </button>
           </div>
         </nav>
@@ -615,7 +713,7 @@ export default function App() {
                 <input
                   type="password"
                   required
-                  placeholder="পাসওয়ার্ড লিখুন (admin123)"
+                  placeholder="পাসওয়ার্ড লিখুন"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   className="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
@@ -639,16 +737,107 @@ export default function App() {
         </div>
       )}
 
-      {/* VIEWS ROUTING */}
+      {/* Quick View Modal */}
+      {quickViewProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative flex flex-col md:flex-row gap-6">
+            <button
+              onClick={() => setQuickViewProduct(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="w-full md:w-1/2 aspect-square bg-slate-100 rounded-xl overflow-hidden">
+              <img
+                src={quickViewProduct.image}
+                alt={quickViewProduct.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <div className="w-full md:w-1/2 flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-semibold text-emerald-700 uppercase">
+                  {quickViewProduct.categoryName}
+                </span>
+                <h2 className="text-xl font-bold text-slate-800 mt-1">
+                  {quickViewProduct.name}
+                </h2>
+
+                <div className="flex items-center space-x-1 mt-2 text-amber-500 text-xs">
+                  <Star className="w-4 h-4 fill-amber-400" />
+                  <span className="font-bold text-slate-700">
+                    {quickViewProduct.rating || 4.8}
+                  </span>
+                  <span className="text-slate-400">
+                    ({quickViewProduct.reviews || 30} রিভিউ)
+                  </span>
+                </div>
+
+                <div className="flex items-center mt-3 space-x-3">
+                  <span className="text-2xl font-black text-slate-900">
+                    ৳{quickViewProduct.price}
+                  </span>
+                  <span className="text-sm text-slate-400 line-through">
+                    ৳{quickViewProduct.originalPrice}
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 mt-3 leading-relaxed">
+                  {quickViewProduct.description}
+                </p>
+
+                {quickViewProduct.fabric && (
+                  <p className="text-xs font-bold text-emerald-800 mt-2">
+                    ফেব্রিক: {quickViewProduct.fabric}
+                  </p>
+                )}
+
+                <div className="mt-4">
+                  <label className="text-xs font-bold text-slate-700 block mb-2">
+                    সাইজ বেছে নিন:
+                  </label>
+                  <div className="flex space-x-2">
+                    {quickViewProduct.sizes.map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => setSelectedSize(size)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold border transition ${
+                          selectedSize === size
+                            ? "bg-emerald-900 text-white border-emerald-900"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => addToCart(quickViewProduct, selectedSize)}
+                className="w-full mt-6 bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-lg text-sm font-bold flex items-center justify-center space-x-2 shadow transition"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>কার্টে যোগ করুন</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pages View */}
       {viewMode === "about" && (
         <main className="max-w-4xl mx-auto px-4 py-12 bg-white rounded-2xl my-8 border shadow-sm">
           <h1 className="text-3xl font-black text-emerald-900 mb-4">
-            আমাদের সম্পর্কে (About Threads & Co.)
+            আমাদের সম্পর্কে (About Us)
           </h1>
           <p className="text-slate-600 text-sm leading-relaxed mb-4">
             Threads & Co. হলো বাংলাদেশের ঐতিহ্যবাহী এবং ট্রেন্ডি পোশাকের একটি
-            আধুনিক বিশ্বস্ত ই-কমার্স ই-শপ। আমরা গুণগত মান নিশ্চিত করে প্রিমিয়াম
-            সুতি পাঞ্জাবি, রেশমি জামদানি শাড়ি, ক্যাজুয়াল শার্ট এবং আকর্ষনীয়
+            আধুনিক ই-কমার্স প্রতিষ্ঠান। আমরা গুণগত মান নিশ্চিত করে প্রিমিয়াম
+            সুতি পাঞ্জাবি, রেশমি জামদানি শাড়ি, ক্যাজুয়াল শার্ট এবং চমৎকার
             থ্রি-পিস দ্রুততম সময়ে কাস্টমারের দোরগোড়ায় পৌঁছে দেই।
           </p>
         </main>
@@ -679,7 +868,7 @@ export default function App() {
             রিটার্ন ও এক্সচেঞ্জ পলিসি
           </h1>
           <p className="text-slate-600 text-sm leading-relaxed">
-            পণ্য হাতে পাওয়ার পর কোনো ত্রুটি থাকলে ডেলিভারিম্যান থাকা অবস্থায় তা
+            পণ্য হাতে পাওয়ার পর কোনো সমস্যা থাকলে ডেলিভারিম্যান থাকা অবস্থায়
             পরীক্ষা করুন। ৩ দিনের মধ্যে যেকোনো সাইজ পরিবর্তন বা এক্সচেঞ্জ সুবিধা
             প্রযোজ্য।
           </p>
@@ -711,6 +900,17 @@ export default function App() {
               >
                 প্রোডাক্ট ম্যানেজমেন্ট
               </button>
+              <button
+                onClick={() => setAdminTab("settings")}
+                className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1 transition ${
+                  adminTab === "settings"
+                    ? "bg-emerald-900 text-white shadow"
+                    : "bg-white text-slate-700 border hover:bg-slate-50"
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                অ্যাকাউন্ট সেটিংস
+              </button>
             </div>
 
             <div className="flex gap-2">
@@ -730,8 +930,8 @@ export default function App() {
             </div>
           </div>
 
-          {adminTab === "orders" ? (
-            loadingOrders ? (
+          {adminTab === "orders" &&
+            (loadingOrders ? (
               <div className="text-center py-20 text-slate-500 font-medium">
                 অর্ডার লোড হচ্ছে...
               </div>
@@ -848,8 +1048,9 @@ export default function App() {
                   </div>
                 ))}
               </div>
-            )
-          ) : (
+            ))}
+
+          {adminTab === "products" && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-xl border border-slate-200 max-w-xl shadow-sm">
                 <h3 className="font-bold text-slate-800 text-base mb-4 flex items-center gap-1">
@@ -960,13 +1161,101 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {adminTab === "settings" && (
+            <div className="bg-white p-6 rounded-2xl border max-w-lg shadow-sm">
+              <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-emerald-800" />
+                অ্যাডমিন প্রোফাইল ও পাসওয়ার্ড পরিবর্তন
+              </h2>
+              <p className="text-xs text-slate-500 mb-5">
+                ইমেইল, ফোন নম্বর অথবা লগইন পাসওয়ার্ড আপডেট করুন
+              </p>
+
+              <form
+                onSubmit={handleUpdateAdminProfile}
+                className="space-y-4 text-xs"
+              >
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    অ্যাডমিন ইমেইল
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full p-2.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    ফোন নম্বর
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full p-2.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  />
+                </div>
+
+                <div className="border-t pt-3 mt-3">
+                  <label className="font-bold text-slate-700 block mb-1">
+                    বর্তমান পাসওয়ার্ড * (পরিবর্তনের জন্য আবশ্যক)
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="বর্তমান পাসওয়ার্ড দিন"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full p-2.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    নতুন পাসওয়ার্ড (ঐচ্ছিক)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="নতুন পাসওয়ার্ড দিন (পাসওয়ার্ড পাল্টাতে চাইলে)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full p-2.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  />
+                </div>
+
+                {settingMsg && (
+                  <p className="text-xs font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                    {settingMsg}
+                  </p>
+                )}
+                {settingErr && (
+                  <p className="text-xs font-bold text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200">
+                    {settingErr}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold transition shadow"
+                >
+                  পরিবর্তন সেভ করুন
+                </button>
+              </form>
+            </div>
+          )}
         </main>
       )}
 
       {/* Shop View */}
       {viewMode === "shop" && (
         <>
-          {/* Hero Section */}
+          {/* Hero Banner Section */}
           <section className="bg-emerald-950 text-white py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
             <div className="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="max-w-xl text-center md:text-left">
@@ -1018,7 +1307,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Filter Bar */}
+            {/* Filter & Sorting Bar */}
             <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-xl border border-slate-200 gap-4 mt-6">
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-700">
                 <SlidersHorizontal className="w-4 h-4 text-emerald-800" />
@@ -1095,8 +1384,9 @@ export default function App() {
                               setQuickViewProduct(product);
                               setSelectedSize(product.sizes[0]);
                             }}
-                            className="bg-white text-slate-800 px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:bg-slate-100"
+                            className="bg-white text-slate-800 px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:bg-slate-100 flex items-center gap-1"
                           >
+                            <Eye className="w-3.5 h-3.5" />
                             কুইক ভিউ
                           </button>
                         </div>
@@ -1109,6 +1399,16 @@ export default function App() {
                         <h3 className="font-bold text-slate-800 mt-1 line-clamp-1">
                           {product.name}
                         </h3>
+
+                        <div className="flex items-center space-x-1 mt-1 text-amber-500 text-xs">
+                          <Star className="w-3.5 h-3.5 fill-amber-400" />
+                          <span className="font-bold text-slate-700">
+                            {product.rating || 4.8}
+                          </span>
+                          <span className="text-slate-400">
+                            ({product.reviews || 25})
+                          </span>
+                        </div>
 
                         <div className="flex items-center mt-2 space-x-2">
                           <span className="text-lg font-black text-slate-900">
@@ -1202,7 +1502,7 @@ export default function App() {
                                       -1,
                                     )
                                   }
-                                  className="px-2 py-0.5 text-slate-600"
+                                  className="px-2 py-0.5 text-slate-600 font-bold"
                                 >
                                   -
                                 </button>
@@ -1217,7 +1517,7 @@ export default function App() {
                                       1,
                                     )
                                   }
-                                  className="px-2 py-0.5 text-slate-600"
+                                  className="px-2 py-0.5 text-slate-600 font-bold"
                                 >
                                   +
                                 </button>
