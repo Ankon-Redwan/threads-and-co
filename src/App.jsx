@@ -11,6 +11,12 @@ import {
   MapPin,
   Clock,
   ArrowLeft,
+  Heart,
+  SlidersHorizontal,
+  Tag,
+  ChevronDown,
+  Lock,
+  LogOut,
 } from "lucide-react";
 
 const PRODUCTS = [
@@ -123,26 +129,48 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [selectedSize, setSelectedSize] = useState("");
   const [shippingLocation, setShippingLocation] = useState("inside-dhaka");
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Admin Auth States
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  // Sort & Size Filter States
+  const [sortBy, setSortBy] = useState("default");
+  const [selectedSizeFilter, setSelectedSizeFilter] = useState("all");
+
+  // Coupon Code States
+  const [couponCode, setCouponCode] = useState("");
+  const [discount, setDiscount] = useState(0);
+  const [couponApplied, setCouponApplied] = useState(false);
+  const [couponError, setCouponError] = useState("");
+
+  // Customer Form States
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
+  const [bkashTrxId, setBkashTrxId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Admin Dashboard States
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   useEffect(() => {
-    if (viewMode === "admin") {
+    if (viewMode === "admin" && isAdminLoggedIn) {
       fetchOrders();
     }
-  }, [viewMode]);
+  }, [viewMode, isAdminLoggedIn]);
 
   const fetchOrders = async () => {
     setLoadingOrders(true);
@@ -157,16 +185,62 @@ export default function App() {
     }
   };
 
+  const handleAdminAccess = () => {
+    if (isAdminLoggedIn) {
+      setViewMode("admin");
+    } else {
+      setShowLoginModal(true);
+    }
+  };
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    // ডিফল্ট পাসওয়ার্ড: admin123
+    if (adminPassword === "admin123") {
+      setIsAdminLoggedIn(true);
+      setShowLoginModal(false);
+      setAdminPassword("");
+      setLoginError("");
+      setViewMode("admin");
+    } else {
+      setLoginError("ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।");
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminLoggedIn(false);
+    setViewMode("shop");
+  };
+
+  const toggleWishlist = (product) => {
+    if (wishlist.some((item) => item.id === product.id)) {
+      setWishlist(wishlist.filter((item) => item.id !== product.id));
+    } else {
+      setWishlist([...wishlist, product]);
+    }
+  };
+
   const filteredProducts = useMemo(() => {
-    return PRODUCTS.filter((product) => {
+    let result = PRODUCTS.filter((product) => {
       const matchesCategory =
         selectedCategory === "all" || product.category === selectedCategory;
       const matchesSearch = product.name
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+      const matchesSize =
+        selectedSizeFilter === "all" ||
+        product.sizes.includes(selectedSizeFilter);
+      return matchesCategory && matchesSearch && matchesSize;
     });
-  }, [selectedCategory, searchQuery]);
+
+    if (sortBy === "low-to-high") {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === "high-to-low") {
+      result.sort((a, b) => b.price - a.price);
+    }
+
+    return result;
+  }, [selectedCategory, searchQuery, selectedSizeFilter, sortBy]);
 
   const addToCart = (product, size) => {
     const chosenSize = size || product.sizes[0];
@@ -203,9 +277,25 @@ export default function App() {
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
+
+  const handleApplyCoupon = (e) => {
+    e.preventDefault();
+    setCouponError("");
+    if (
+      couponCode.toUpperCase() === "EID2026" ||
+      couponCode.toUpperCase() === "THREADS10"
+    ) {
+      const discountAmount = Math.round(subtotal * 0.1);
+      setDiscount(discountAmount);
+      setCouponApplied(true);
+    } else {
+      setCouponError("অবৈধ কুপন কোড! (চেষ্টা করুন: EID2026)");
+    }
+  };
+
   const shippingCost =
     cart.length === 0 ? 0 : shippingLocation === "inside-dhaka" ? 80 : 150;
-  const totalAmount = subtotal + shippingCost;
+  const totalAmount = Math.max(0, subtotal - discount + shippingCost);
 
   const handleCheckout = async (e) => {
     e.preventDefault();
@@ -216,6 +306,11 @@ export default function App() {
       return;
     }
 
+    if (paymentMethod === "bkash" && !bkashTrxId) {
+      alert("অনুগ্রহ করে বিকাশ Transaction ID প্রদান করুন।");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const orderData = {
@@ -223,9 +318,12 @@ export default function App() {
       phone: customerPhone,
       address: customerAddress,
       items: cart,
+      subtotal,
+      discount,
       totalAmount,
       shippingLocation,
       paymentMethod,
+      bkashTrxId: paymentMethod === "bkash" ? bkashTrxId : "N/A",
     };
 
     try {
@@ -245,6 +343,10 @@ export default function App() {
         setCustomerName("");
         setCustomerPhone("");
         setCustomerAddress("");
+        setBkashTrxId("");
+        setDiscount(0);
+        setCouponApplied(false);
+        setCouponCode("");
       } else {
         alert("অর্ডার সেভ করতে সমস্যা হয়েছে!");
       }
@@ -259,65 +361,200 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+      <div className="bg-emerald-900 text-white text-xs sm:text-sm py-2 px-4 text-center font-medium flex justify-between items-center max-w-7xl mx-auto">
+        <span>
+          🎉 ১০% ডিসকাউন্ট পেতে কুপন কোড ব্যবহার করুন:{" "}
+          <span className="font-extrabold text-yellow-300">EID2026</span>
+        </span>
+        <span className="hidden md:inline">📞 হটলাইন: +৮৮০ ১৭০০ ০০০০০০</span>
+      </div>
+
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-slate-600 hover:text-slate-900"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+
             <span
-              onClick={() => setViewMode("shop")}
+              onClick={() => {
+                setViewMode("shop");
+                setSelectedCategory("all");
+              }}
               className="text-2xl font-black text-emerald-900 tracking-tight cursor-pointer"
             >
               Threads<span className="text-emerald-600">&</span>Co.
             </span>
           </div>
 
-          {viewMode === "shop" ? (
-            <>
-              <div className="hidden md:flex flex-1 max-w-md mx-8 relative">
-                <input
-                  type="text"
-                  placeholder="পছন্দের কাপড় সার্চ করুন..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                />
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              </div>
+          <div className="hidden md:flex flex-1 max-w-md mx-8 relative">
+            <input
+              type="text"
+              placeholder="পছন্দের কাপড় সার্চ করুন..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+          </div>
 
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => setViewMode("admin")}
-                  className="flex items-center space-x-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition font-medium border"
-                >
-                  <ShieldAlert className="w-4 h-4 text-emerald-800" />
-                  <span>অ্যাডমিন ড্যাশবোর্ড</span>
-                </button>
-
-                <button
-                  onClick={() => setIsCartOpen(true)}
-                  className="relative p-2 text-slate-700 hover:text-emerald-700 transition"
-                >
-                  <ShoppingCart className="w-6 h-6" />
-                  {cart.length > 0 && (
-                    <span className="absolute top-0 right-0 bg-emerald-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                      {cart.reduce((a, c) => a + c.quantity, 0)}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </>
-          ) : (
+          <div className="flex items-center space-x-4">
             <button
-              onClick={() => setViewMode("shop")}
-              className="flex items-center space-x-2 text-sm bg-emerald-900 text-white px-4 py-2 rounded-lg hover:bg-emerald-800 transition font-bold"
+              onClick={() => setIsWishlistOpen(true)}
+              className="relative p-2 text-slate-700 hover:text-red-600 transition"
+              title="পছন্দের তালিকা"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>দোকানে ফিরে যান</span>
+              <Heart className="w-6 h-6" />
+              {wishlist.length > 0 && (
+                <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {wishlist.length}
+                </span>
+              )}
             </button>
-          )}
+
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="relative p-2 text-slate-700 hover:text-emerald-700 transition"
+            >
+              <ShoppingCart className="w-6 h-6" />
+              {cart.length > 0 && (
+                <span className="absolute top-0 right-0 bg-emerald-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {cart.reduce((a, c) => a + c.quantity, 0)}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={handleAdminAccess}
+              className="flex items-center space-x-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition font-medium border"
+            >
+              <ShieldAlert className="w-4 h-4 text-emerald-800" />
+              <span className="hidden sm:inline">অ্যাডমিন</span>
+            </button>
+          </div>
         </div>
+
+        <nav className="bg-slate-900 text-white text-sm hidden md:block">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center space-x-8 h-11">
+            <button
+              onClick={() => {
+                setViewMode("shop");
+                setSelectedCategory("all");
+              }}
+              className={`hover:text-emerald-400 font-bold ${viewMode === "shop" && selectedCategory === "all" ? "text-emerald-400" : ""}`}
+            >
+              হোম
+            </button>
+
+            <div className="relative group">
+              <button className="flex items-center space-x-1 hover:text-emerald-400 font-bold py-2">
+                <span>কাপড়ের ক্যাটাগরি</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              <div className="absolute left-0 top-full hidden group-hover:block bg-white text-slate-800 shadow-xl rounded-b-lg border w-48 py-2 z-40">
+                {[
+                  { id: "panjabi", name: "পাঞ্জাবি" },
+                  { id: "saree", name: "শাড়ি" },
+                  { id: "shirt", name: "শার্ট" },
+                  { id: "salwar-kameez", name: "থ্রি-পিস" },
+                  { id: "kurti", name: "কুর্তি" },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      setViewMode("shop");
+                      setSelectedCategory(cat.id);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-semibold hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setViewMode("about")}
+              className={`hover:text-emerald-400 font-bold ${viewMode === "about" ? "text-emerald-400" : ""}`}
+            >
+              আমাদের সম্পর্কে
+            </button>
+            <button
+              onClick={() => setViewMode("contact")}
+              className={`hover:text-emerald-400 font-bold ${viewMode === "contact" ? "text-emerald-400" : ""}`}
+            >
+              যোগাযোগ
+            </button>
+            <button
+              onClick={() => setViewMode("policy")}
+              className={`hover:text-emerald-400 font-bold ${viewMode === "policy" ? "text-emerald-400" : ""}`}
+            >
+              রিটার্ন ও পলিসি
+            </button>
+          </div>
+        </nav>
       </header>
 
-      {viewMode === "admin" ? (
+      {/* Admin Login Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowLoginModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Lock className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-xl font-bold text-center text-slate-800">
+              অ্যাডমিন লগইন
+            </h3>
+            <p className="text-xs text-center text-slate-500 mt-1 mb-4">
+              ড্যাশবোর্ডে প্রবেশ করতে সিক্রেট পাসওয়ার্ড দিন
+            </p>
+
+            <form onSubmit={handleLoginSubmit} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  পাসওয়ার্ড
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="পাসওয়ার্ড লিখুন"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </div>
+
+              {loginError && (
+                <p className="text-xs text-red-600 font-bold text-center">
+                  {loginError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-2.5 rounded-lg text-xs font-bold transition shadow"
+              >
+                প্রবেশ করুন
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Panel View */}
+      {viewMode === "admin" && isAdminLoggedIn && (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="flex justify-between items-center mb-8">
             <div>
@@ -328,12 +565,21 @@ export default function App() {
                 ওয়েবসাইট থেকে প্রাপ্ত কাস্টমারদের সব অর্ডারের সামারি
               </p>
             </div>
-            <button
-              onClick={fetchOrders}
-              className="bg-emerald-900 text-white text-xs px-4 py-2 rounded-lg hover:bg-emerald-800 font-bold"
-            >
-              রিফ্রেশ লিস্ট
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchOrders}
+                className="bg-emerald-900 text-white text-xs px-4 py-2 rounded-lg hover:bg-emerald-800 font-bold"
+              >
+                রিফ্রেশ লিস্ট
+              </button>
+              <button
+                onClick={handleAdminLogout}
+                className="bg-red-600 text-white text-xs px-3 py-2 rounded-lg hover:bg-red-700 font-bold flex items-center gap-1"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                লগআউট
+              </button>
+            </div>
           </div>
 
           {loadingOrders ? (
@@ -380,6 +626,12 @@ export default function App() {
                           : "ঢাকার বাইরে"}
                         )
                       </p>
+                      <p className="text-emerald-800 font-bold">
+                        পেমেন্ট পদ্ধতি:{" "}
+                        {order.paymentMethod === "bkash"
+                          ? `বিকাশ (TrxID: ${order.bkashTrxId})`
+                          : "ক্যাশ অন ডেলিভারি"}
+                      </p>
                     </div>
                   </div>
 
@@ -402,6 +654,12 @@ export default function App() {
                         </div>
                       ))}
                     </div>
+                    {order.discount > 0 && (
+                      <div className="flex justify-between text-xs text-red-600 mt-2">
+                        <span>ডিসকাউন্ট:</span>
+                        <span>-৳{order.discount}</span>
+                      </div>
+                    )}
                     <div className="border-t mt-3 pt-2 flex justify-between font-black text-sm text-emerald-900">
                       <span>সর্বমোট মূল্য:</span>
                       <span>৳{order.totalAmount}</span>
@@ -412,12 +670,11 @@ export default function App() {
             </div>
           )}
         </main>
-      ) : (
-        <>
-          <div className="bg-emerald-900 text-white text-xs sm:text-sm py-2 px-4 text-center font-medium">
-            🎉 সারা দেশে দ্রুত হোম ডেলিভারি! ৮০০+ টাকার অর্ডারে বিশেষ উপহার!
-          </div>
+      )}
 
+      {/* Shop View */}
+      {viewMode === "shop" && (
+        <>
           <section className="bg-emerald-950 text-white py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
             <div className="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="max-w-xl text-center md:text-left">
@@ -443,99 +700,131 @@ export default function App() {
           </section>
 
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="flex items-center justify-between pb-6 border-b border-slate-200 gap-4 overflow-x-auto">
-              <div className="flex items-center space-x-2">
-                {[
-                  { id: "all", name: "সব কালেকশন" },
-                  { id: "panjabi", name: "পাঞ্জাবি" },
-                  { id: "saree", name: "শাড়ি" },
-                  { id: "shirt", name: "শার্ট" },
-                  { id: "salwar-kameez", name: "থ্রি-পিস" },
-                  { id: "kurti", name: "কুর্তি" },
-                ].map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition ${
-                      selectedCategory === cat.id
-                        ? "bg-emerald-900 text-white shadow-md"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                    }`}
+            <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-xl border border-slate-200 gap-4 mb-6">
+              <div className="flex items-center space-x-2 text-xs font-bold text-slate-700">
+                <SlidersHorizontal className="w-4 h-4 text-emerald-800" />
+                <span>ফিল্টার ও ফিল্টারিং:</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 text-xs">
+                <div className="flex items-center space-x-2">
+                  <span className="text-slate-500 font-medium">সাইজ:</span>
+                  <select
+                    value={selectedSizeFilter}
+                    onChange={(e) => setSelectedSizeFilter(e.target.value)}
+                    className="border border-slate-300 rounded-md p-1.5 bg-white font-semibold text-slate-700"
                   >
-                    {cat.name}
-                  </button>
-                ))}
+                    <option value="all">সব সাইজ</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                    <option value="XXL">XXL</option>
+                    <option value="Free Size">Free Size</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <span className="text-slate-500 font-medium">সর্ট করুন:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="border border-slate-300 rounded-md p-1.5 bg-white font-semibold text-slate-700"
+                  >
+                    <option value="default">সাধারণ</option>
+                    <option value="low-to-high">দাম: কম থেকে বেশি</option>
+                    <option value="high-to-low">দাম: বেশি থেকে কম</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {filteredProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="relative group overflow-hidden bg-slate-100 aspect-square">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                      />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                        <button
-                          onClick={() => {
-                            setQuickViewProduct(product);
-                            setSelectedSize(product.sizes[0]);
-                          }}
-                          className="bg-white text-slate-800 px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:bg-slate-100"
-                        >
-                          কুইক ভিউ
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      <span className="text-xs font-semibold text-emerald-700 uppercase">
-                        {product.categoryName}
-                      </span>
-                      <h3 className="font-bold text-slate-800 mt-1 line-clamp-1">
-                        {product.name}
-                      </h3>
-
-                      <div className="flex items-center mt-2 space-x-2">
-                        <span className="text-lg font-black text-slate-900">
-                          ৳{product.price}
-                        </span>
-                        <span className="text-sm text-slate-400 line-through">
-                          ৳{product.originalPrice}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {filteredProducts.map((product) => {
+                const isWishlisted = wishlist.some(
+                  (item) => item.id === product.id,
+                );
+                return (
+                  <div
+                    key={product.id}
+                    className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between relative"
+                  >
                     <button
-                      onClick={() => addToCart(product, product.sizes[0])}
-                      className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 transition"
+                      onClick={() => toggleWishlist(product)}
+                      className="absolute top-3 right-3 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow hover:bg-white transition"
                     >
-                      <ShoppingCart className="w-4 h-4" />
-                      <span>কার্টে যোগ করুন</span>
+                      <Heart
+                        className={`w-5 h-5 ${
+                          isWishlisted
+                            ? "fill-red-500 text-red-500"
+                            : "text-slate-400"
+                        }`}
+                      />
                     </button>
+
+                    <div>
+                      <div className="relative group overflow-hidden bg-slate-100 aspect-square">
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                          <button
+                            onClick={() => {
+                              setQuickViewProduct(product);
+                              setSelectedSize(product.sizes[0]);
+                            }}
+                            className="bg-white text-slate-800 px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:bg-slate-100"
+                          >
+                            কুইক ভিউ
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-4">
+                        <span className="text-xs font-semibold text-emerald-700 uppercase">
+                          {product.categoryName}
+                        </span>
+                        <h3 className="font-bold text-slate-800 mt-1 line-clamp-1">
+                          {product.name}
+                        </h3>
+
+                        <div className="flex items-center mt-2 space-x-2">
+                          <span className="text-lg font-black text-slate-900">
+                            ৳{product.price}
+                          </span>
+                          <span className="text-sm text-slate-400 line-through">
+                            ৳{product.originalPrice}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 pt-0">
+                      <button
+                        onClick={() => addToCart(product, product.sizes[0])}
+                        className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 transition"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        <span>কার্টে যোগ করুন</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </main>
         </>
       )}
 
+      {/* Cart Drawer */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden">
           <div
             className="absolute inset-0 bg-black/50 transition-opacity"
             onClick={() => setIsCartOpen(false)}
           />
-
           <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
             <div className="w-screen max-w-md bg-white shadow-xl flex flex-col">
               <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
@@ -622,78 +911,30 @@ export default function App() {
                       <h3 className="font-bold text-sm text-slate-800 border-b pb-1">
                         ডেলিভারি তথ্য
                       </h3>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">
-                          আপনার নাম *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="আপনার নাম লিখুন"
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          className="w-full text-xs p-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">
-                          মোবাইল নম্বর *
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          placeholder="০১৭xxxxxxxx"
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
-                          className="w-full text-xs p-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">
-                          সম্পূর্ণ ঠিকানা *
-                        </label>
-                        <textarea
-                          required
-                          rows="2"
-                          placeholder="বাসা/রোড নম্বর, এরিয়া, জেলা"
-                          value={customerAddress}
-                          onChange={(e) => setCustomerAddress(e.target.value)}
-                          className="w-full text-xs p-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                        ></textarea>
-                      </div>
-
-                      <div className="space-y-2 pt-2 text-sm">
-                        <div className="flex justify-between text-slate-600">
-                          <span>সাবটোটাল</span>
-                          <span className="font-semibold">৳{subtotal}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center text-slate-600">
-                          <span>ডেলিভারি এলাকা</span>
-                          <select
-                            value={shippingLocation}
-                            onChange={(e) =>
-                              setShippingLocation(e.target.value)
-                            }
-                            className="text-xs border border-slate-300 rounded p-1 bg-white"
-                          >
-                            <option value="inside-dhaka">
-                              ঢাকার ভেতরে (৳৮০)
-                            </option>
-                            <option value="outside-dhaka">
-                              ঢাকার বাইরে (৳১৫০)
-                            </option>
-                          </select>
-                        </div>
-
-                        <div className="flex justify-between text-slate-900 font-extrabold text-base pt-2 border-t border-slate-200">
-                          <span>সর্বমোট</span>
-                          <span className="text-emerald-900">
-                            ৳{totalAmount}
-                          </span>
-                        </div>
-                      </div>
-
+                      <input
+                        type="text"
+                        required
+                        placeholder="আপনার নাম লিখুন"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full text-xs p-2 border border-slate-300 rounded"
+                      />
+                      <input
+                        type="tel"
+                        required
+                        placeholder="০১৭xxxxxxxx"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        className="w-full text-xs p-2 border border-slate-300 rounded"
+                      />
+                      <textarea
+                        required
+                        rows="2"
+                        placeholder="বাসা/রোড নম্বর, এরিয়া, জেলা"
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                        className="w-full text-xs p-2 border border-slate-300 rounded"
+                      ></textarea>
                       <button
                         type="submit"
                         disabled={isSubmitting}
@@ -712,6 +953,74 @@ export default function App() {
         </div>
       )}
 
+      {/* Wishlist Drawer */}
+      {isWishlistOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div
+            className="absolute inset-0 bg-black/50 transition-opacity"
+            onClick={() => setIsWishlistOpen(false)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-md bg-white shadow-xl flex flex-col">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                  <Heart className="w-5 h-5 text-red-600 fill-red-600" />
+                  <span>পছন্দের তালিকা ({wishlist.length})</span>
+                </h2>
+                <button
+                  onClick={() => setIsWishlistOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {wishlist.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Heart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500 font-medium">
+                      পছন্দের তালিকায় কোনো প্রোডাক্ট নেই!
+                    </p>
+                  </div>
+                ) : (
+                  wishlist.map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex space-x-4 p-3 border rounded-xl items-center justify-between"
+                    >
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-16 h-16 object-cover rounded-lg"
+                      />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-slate-800 line-clamp-1">
+                          {product.name}
+                        </h4>
+                        <p className="text-xs font-black text-emerald-900 mt-1">
+                          ৳{product.price}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          addToCart(product, product.sizes[0]);
+                          toggleWishlist(product);
+                        }}
+                        className="bg-emerald-900 text-white text-xs px-2.5 py-1.5 rounded font-bold"
+                      >
+                        কার্টে নিন
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Success Popup */}
       {orderPlaced && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl">
@@ -722,8 +1031,7 @@ export default function App() {
               অর্ডার সফল হয়েছে!
             </h3>
             <p className="text-xs text-slate-500 mt-2">
-              আপনার অর্ডারটি গ্রহণ করা হয়েছে। শীঘ্রই আমাদের প্রতিনিধি কল দিয়ে
-              অর্ডার নিশ্চিত করবেন।
+              আপনার অর্ডারটি গ্রহণ করা হয়েছে।
             </p>
             <button
               onClick={() => setOrderPlaced(false)}
